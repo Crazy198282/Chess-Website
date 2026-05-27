@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: chess_user
+      POSTGRES_PASSWORD: chess_password
+      POSTGRES_DB: chess_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chess_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://chess_user:chess_password@postgres:5432/chess_db
+      JWT_SECRET: dev_secret_key_change_in_production
+      STOCKFISH_PATH: /usr/bin/stockfish
+      FRONTEND_URL: http://localhost:5173
+      PORT: 5000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - /app/node_modules
+
+  client:
+    image: node:18-alpine
+    working_dir: /app/client
+    command: npm run dev
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: http://localhost:5000
+    depends_on:
+      - server
+    volumes:
+      - ./client:/app/client
+      - /app/client/node_modules
+
+volumes:
+  postgres_data:
